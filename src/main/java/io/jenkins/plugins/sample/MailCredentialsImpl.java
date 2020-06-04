@@ -7,25 +7,25 @@ import hudson.Extension;
 import hudson.util.Secret;
 import org.kohsuke.stapler.DataBoundConstructor;
 
-// Name provider for this credential
+// Show gmail address at name column on credentials page
 @NameWith(value = MailCredentialsNameProvider.class)
 
 public class MailCredentialsImpl extends BaseStandardCredentials implements MailCredentials {
-    private final String username;
+    private final String gmailAddress;
     private final Secret password;
     private final String description;
 
     @DataBoundConstructor
-    public MailCredentialsImpl(String id, String description, String username, String password) {
+    public MailCredentialsImpl(String id, String description, String gmailAddress, String password) {
         super(id, description);
-        this.username = username;
+        this.gmailAddress = gmailAddress;
         this.password = Secret.fromString(password);
         this.description = description;
     }
 
     @Override
-    public String getUsername() {
-        return username;
+    public String getGmailAddress() {
+        return gmailAddress;
     }
 
     @Override
@@ -34,9 +34,9 @@ public class MailCredentialsImpl extends BaseStandardCredentials implements Mail
     }
 
     @Extension
-    public static class Descriptor extends CredentialsDescriptor{
-        public String getDisplayName(){
-            return "Email Credentials";
+    public static class Descriptor extends CredentialsDescriptor {
+        public String getDisplayName() {
+            return "Gmail address and password";
         }
     }
 }

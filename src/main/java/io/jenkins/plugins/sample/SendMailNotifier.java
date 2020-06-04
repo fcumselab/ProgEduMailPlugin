@@ -44,15 +44,15 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
         this.studentEmail = studentEmail;
         this.credentialsId = credentialsId;
 
+        // Get all available credentials
         List<MailCredentials> credentials = CredentialsProvider.lookupCredentials(
                 MailCredentials.class, Jenkins.getInstanceOrNull(), ACL.SYSTEM,
-                Collections.<DomainRequirement> emptyList()
+                Collections.<DomainRequirement>emptyList()
         );
 
-        MailCredentials credential = CredentialsMatchers.firstOrNull(credentials,
+        // Get the credential from a Collection
+        this.credential = CredentialsMatchers.firstOrNull(credentials,
                 CredentialsMatchers.allOf(CredentialsMatchers.withId(credentialsId)));
-
-        this.credential = credential;
     }
 
     public String getStudentEmail() {
@@ -66,7 +66,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     }
 
     private void sendMail(TaskListener listener) {
-        String sender = credential.getUsername(); // Sender's gmail
+        String sender = credential.getGmailAddress(); // Sender's gmail
         String recipients = studentEmail; // Recipients' gmail
         String host = "smtp.gmail.com";
 
@@ -77,7 +77,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
         props.put("mail.smtp.ssl.enable", "true");
         props.put("mail.smtp.auth", "true");
 
-        // Get the Session object and pass username and password
+        // Get the Session object and pass username & password
         Session session = Session.getInstance(props, new javax.mail.Authenticator() {
             protected PasswordAuthentication getPasswordAuthentication() {
                 return new PasswordAuthentication(sender, credential.getPassword().getPlainText());
@@ -88,13 +88,14 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
         // session.setDebug(true);
 
         try {
+            // Set message of mail
             Message message = new MimeMessage(session);
             message.setFrom(new InternetAddress(sender, "ProgEdu"));
             message.addRecipient(Message.RecipientType.TO, new InternetAddress(recipients));
             message.setSubject("ProgEdu Test Result"); // Title of mail
             message.setText("ProgEdu Test at " + new Date().toString()); // Content of mail
 
-            listener.getLogger().println("Sending mail to " + sender);
+            listener.getLogger().println("Sending mail to " + recipients);
             Transport.send(message); // Send message
 
             listener.getLogger().println("Sent message successfully....");
