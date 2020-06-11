@@ -62,10 +62,15 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     @Override
     public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
             throws InterruptedException, IOException {
-        sendMail(listener);
+        String buildStatus = Objects.requireNonNull(run.getResult()).toString();
+        sendMail(listener, buildStatus);
+
+//        String consoleText = String.join("\n", run.getLog(9999));
+//        ExtractFeedback extractFeedback = new ExtractFeedback("", "", consoleText);
+
     }
 
-    private void sendMail(TaskListener listener) {
+    private void sendMail(TaskListener listener, String buildStatus) {
         String sender = credential.getGmailAddress(); // Sender's gmail
         String recipients = studentEmail; // Recipients' gmail
         String host = "smtp.gmail.com";
@@ -92,8 +97,8 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
             Message message = new MimeMessage(session);
             message.setFrom(new InternetAddress(sender, "ProgEdu"));
             message.addRecipient(Message.RecipientType.TO, new InternetAddress(recipients));
-            message.setSubject("ProgEdu Test Result"); // Title of mail
-            message.setText("ProgEdu Test at " + new Date().toString()); // Content of mail
+            message.setSubject("ProgEdu Test " + buildStatus); // Title of mail
+            message.setText("ProgEdu Test "+ buildStatus + " at " + new Date().toString()); // Content of mail
 
             listener.getLogger().println("Sending mail to " + recipients);
             Transport.send(message); // Send message
