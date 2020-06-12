@@ -4,6 +4,7 @@ import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
+import fcu.selab.progextractor.data.ExtractFeedback;
 import hudson.Launcher;
 import hudson.Extension;
 import hudson.FilePath;
@@ -17,6 +18,8 @@ import hudson.model.TaskListener;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 
@@ -25,10 +28,9 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import jenkins.tasks.SimpleBuildStep;
 import org.jenkinsci.Symbol;
@@ -36,12 +38,14 @@ import org.jenkinsci.Symbol;
 public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
     private final String studentEmail;
+    private final String assignmentType;
     private final String credentialsId;
     private final MailCredentials credential;
 
     @DataBoundConstructor
-    public SendMailNotifier(String studentEmail, String credentialsId) {
+    public SendMailNotifier(String studentEmail, String assignmentType, String credentialsId) {
         this.studentEmail = studentEmail;
+        this.assignmentType = assignmentType;
         this.credentialsId = credentialsId;
 
         // Get all available credentials
@@ -63,14 +67,48 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
             throws InterruptedException, IOException {
         String buildStatus = Objects.requireNonNull(run.getResult()).toString();
-        sendMail(listener, buildStatus);
 
-//        String consoleText = String.join("\n", run.getLog(9999));
-//        ExtractFeedback extractFeedback = new ExtractFeedback("", "", consoleText);
-
+        String consoleText = String.join("\n", run.getLog(9999)); // Get full console text
+        List<Map<String, String>> message = extractMessage(consoleText);
+        sendMail(listener, buildStatus, message);
     }
 
-    private void sendMail(TaskListener listener, String buildStatus) {
+    /**
+     * @param consoleText - Console text of the build.
+     * @return - Extracted messages from the console text.
+     */
+    private List<Map<String, String>> extractMessage(String consoleText) {
+        String status = null;
+
+        // Find the build status such as utf, cpf
+        Pattern pattern = Pattern.compile("WEB return value is :.*\"status\":\"(.*)\""); // Get build status
+        Matcher matcher = pattern.matcher(consoleText);
+        while (matcher.find()) {
+            status = matcher.group(1);
+        }
+
+        // Extract the build messages that will send to students
+        ExtractFeedback extractFeedback = new ExtractFeedback(assignmentType, status, consoleText);
+        String feedback = extractFeedback.getFeedback();
+
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            return mapper.readValue(
+                    feedback, new TypeReference<List<Map<String, String>>>() {
+                    });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+
+    /**
+     * @param listener     - Listener of the build
+     * @param buildStatus  - SUCCESS or FAILURE
+     * @param buildMessage - Extracted message from console text
+     */
+    private void sendMail(TaskListener listener, String buildStatus, List<Map<String, String>> buildMessage) {
         String sender = credential.getGmailAddress(); // Sender's gmail
         String recipients = studentEmail; // Recipients' gmail
         String host = "smtp.gmail.com";
@@ -89,19 +127,38 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
             }
         });
 
-        // Used to debug SMTP issues
-        // session.setDebug(true);
+        // Set mail content
+        StringBuilder mailMessageContent = new StringBuilder();
+        mailMessageContent.append("ProgEdu Build ").append(buildStatus).append("\n");
+
+        // Status abbreviation to full
+        Map<String, String> status = new HashMap<>();
+        status.put("ini", "Initial");
+        status.put("bs", "Build Success");
+        status.put("cpf", "Compile Failure");
+        status.put("csf", "Coding Style Failure");
+        status.put("utf", "Unit Test Failure");
+
+        buildMessage.forEach(message -> {
+            mailMessageContent
+                    .append("Status: ").append(status.get(message.get("status"))).append("\n")
+                    .append("File name: ").append(message.get("fileName")).append("\n")
+                    .append("Message: ").append(message.get("message")).append("\n")
+                    .append("Symptom: ").append(message.get("symptom")).append("\n")
+                    .append("Suggest: ").append(message.get("suggest")).append("\n\n")
+                    .append("Build complete at ").append(new Date().toString());
+        });
 
         try {
             // Set message of mail
-            Message message = new MimeMessage(session);
-            message.setFrom(new InternetAddress(sender, "ProgEdu"));
-            message.addRecipient(Message.RecipientType.TO, new InternetAddress(recipients));
-            message.setSubject("ProgEdu Test " + buildStatus); // Title of mail
-            message.setText("ProgEdu Test "+ buildStatus + " at " + new Date().toString()); // Content of mail
+            Message mailMessage = new MimeMessage(session);
+            mailMessage.setFrom(new InternetAddress(sender, "ProgEdu"));
+            mailMessage.addRecipient(Message.RecipientType.TO, new InternetAddress(recipients));
+            mailMessage.setSubject("ProgEdu Test " + buildStatus); // Title of mail
+            mailMessage.setText(mailMessageContent.toString()); // Content of mail
 
             listener.getLogger().println("Sending mail to " + recipients);
-            Transport.send(message); // Send message
+            Transport.send(mailMessage); // Send message
 
             listener.getLogger().println("Sent message successfully....");
         } catch (MessagingException | UnsupportedEncodingException mex) {
