@@ -38,15 +38,19 @@ import org.jenkinsci.Symbol;
 public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
     private final String studentEmail;
-    private final String assignmentType;
     private final String credentialsId;
+    private final String smtpHost;
+    private final int smtpPort;
+    private final String assignmentType;
     private final MailCredentials credential;
 
     @DataBoundConstructor
-    public SendMailNotifier(String studentEmail, String assignmentType, String credentialsId) {
+    public SendMailNotifier(String studentEmail, String credentialsId, String smtpHost, int smtpPort, String assignmentType) {
         this.studentEmail = studentEmail;
-        this.assignmentType = assignmentType;
         this.credentialsId = credentialsId;
+        this.smtpHost = smtpHost;
+        this.smtpPort = smtpPort;
+        this.assignmentType = assignmentType;
 
         // Get all available credentials
         List<MailCredentials> credentials = CredentialsProvider.lookupCredentials(
@@ -54,13 +58,33 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
                 Collections.<DomainRequirement>emptyList()
         );
 
-        // Get the credential from a Collection
+        // Get the credential from the above list
         this.credential = CredentialsMatchers.firstOrNull(credentials,
                 CredentialsMatchers.allOf(CredentialsMatchers.withId(credentialsId)));
     }
 
     public String getStudentEmail() {
         return studentEmail;
+    }
+
+    public String getAssignmentType() {
+        return assignmentType;
+    }
+
+    public String getSmtpHost() {
+        return smtpHost;
+    }
+
+    public int getSmtpPort() {
+        return smtpPort;
+    }
+
+    public String getCredentialsId() {
+        return credentialsId;
+    }
+
+    public MailCredentials getCredential() {
+        return credential;
     }
 
     @Override
@@ -74,6 +98,8 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     }
 
     /**
+     * Extract message that will send to student from full console text
+     *
      * @param consoleText - Console text of the build.
      * @return - Extracted messages from the console text.
      */
@@ -87,8 +113,8 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
             status = matcher.group(1);
         }
 
-        // Extract the build messages that will send to students
-        ExtractFeedback extractFeedback = new ExtractFeedback(assignmentType, status, consoleText);
+        // Extract the build messages
+        ExtractFeedback extractFeedback = new ExtractFeedback(this.assignmentType, status, consoleText);
         String feedback = extractFeedback.getFeedback();
 
         ObjectMapper mapper = new ObjectMapper();
@@ -104,19 +130,23 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
 
     /**
+     * Send mail to students.
+     *
      * @param listener     - Listener of the build
      * @param buildStatus  - SUCCESS or FAILURE
      * @param buildMessage - Extracted message from console text
      */
     private void sendMail(TaskListener listener, String buildStatus, List<Map<String, String>> buildMessage) {
-        String sender = credential.getGmailAddress(); // Sender's gmail
-        String recipients = studentEmail; // Recipients' gmail
-        String host = "smtp.gmail.com";
+        String sender = this.credential.getGmailAddress(); // Sender's gmail
+        String recipients = this.studentEmail; // Recipients' gmail
+
+        // Setup timezone
+        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Taipei"));
 
         // Setup mail server
         Properties props = System.getProperties();
-        props.put("mail.smtp.host", host);
-        props.put("mail.smtp.port", "465");
+        props.put("mail.smtp.host", this.smtpHost);
+        props.put("mail.smtp.port", this.smtpPort);
         props.put("mail.smtp.ssl.enable", "true");
         props.put("mail.smtp.auth", "true");
 
@@ -146,7 +176,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
                     .append("Message: ").append(message.get("message")).append("\n")
                     .append("Symptom: ").append(message.get("symptom")).append("\n")
                     .append("Suggest: ").append(message.get("suggest")).append("\n\n")
-                    .append("Build complete at ").append(new Date().toString());
+                    .append("Build finish at ").append(new Date().toString());
         });
 
         try {
@@ -176,28 +206,55 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     @Symbol("greet")
     @Extension
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
-        public FormValidation doCheckEmail(@QueryParameter String email) {
-            if (email.length() == 0) {
+        public FormValidation doCheckStudentEmail(@QueryParameter String studentEmail) {
+            if (studentEmail.length() == 0) {
                 return FormValidation.error(Messages.SendMailNotifier_DescriptorImpl_errors_missingEmail());
-            } else if (email.matches("[\\w]+@[\\w]+(\\.[\\w]+)+")) {
+            } else if (studentEmail.matches("[\\w]+@[\\w]+(\\.[\\w]+)+")) {
                 return FormValidation.ok();
             } else {
                 return FormValidation.error(Messages.SendMailNotifier_DescriptorImpl_errors_wrongFormat());
             }
         }
 
+        public FormValidation doCheckSmtpHost(@QueryParameter String smtpHost) {
+            if (smtpHost.matches("[\\w]+(\\.[\\w]+)+")) {
+                return FormValidation.ok();
+            }
+            return FormValidation.error(Messages.SendMailNotifier_DescriptorImpl_errors_wrongSMTPFormat());
+        }
+
+        public FormValidation doCheckSmtpPort(@QueryParameter String smtpPort) {
+            if (smtpPort.matches("[\\d]+")) {
+                int port = Integer.parseInt(smtpPort);
+                if (0 <= port && port <= 65535) {
+                    return FormValidation.ok();
+                }
+            }
+            return FormValidation.error(Messages.SendMailNotifier_DescriptorImpl_errors_wrongSMTPPort());
+        }
+
+        public FormValidation doCheckAssignmentType(@QueryParameter String assignmentType) {
+            if (assignmentType.matches("(maven|java|android|web)(?i)")) {
+                return FormValidation.ok();
+            }
+            return FormValidation.error(Messages.SendMailNotifier_DescriptorImpl_errors_wrongAssignmentType());
+        }
+
+        public FormValidation doCheckCredentialsId(@QueryParameter String credentialsId) {
+            if (!credentialsId.equals("")) {
+                return FormValidation.ok();
+            }
+            return FormValidation.error(Messages.SendMailNotifier_DescriptorImpl_errors_emptyCredentialsId());
+        }
+
         // List all credentials at the plugin options
-        public ListBoxModel doFillCredentialsIdItems(@QueryParameter("CredentialsId") String credentialsId) {
+        public ListBoxModel doFillCredentialsIdItems(@QueryParameter String credentialsId) {
             StandardListBoxModel result = new StandardListBoxModel();
             return result
                     .includeEmptyValue()
                     .includeAs(ACL.SYSTEM, Jenkins.get(),
                             MailCredentialsImpl.class)
                     .includeCurrentValue(credentialsId);
-        }
-
-        public FormValidation doCheckCredentialsId(@QueryParameter String credentialsId) {
-            return FormValidation.ok();
         }
 
 
