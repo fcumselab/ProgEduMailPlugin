@@ -257,6 +257,17 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
                     .includeCurrentValue(credentialsId);
         }
 
+        // List all credentials at the plugin options
+        public ListBoxModel doFillAssignmentTypeItems(@QueryParameter String assignmentType) {
+            StandardListBoxModel result = new StandardListBoxModel();
+            return result
+                    .includeEmptyValue()
+                    .add("maven")
+                    .add("java")
+                    .add("android")
+                    .add("web");
+        }
+
 
         @Override
         public boolean isApplicable(Class<? extends AbstractProject> aClass) {
