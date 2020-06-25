@@ -7,6 +7,6 @@ public class MailCredentialsNameProvider extends CredentialsNameProvider<MailCre
     @NonNull
     @Override
     public String getName(@NonNull MailCredentials mailCredentials) {
-        return mailCredentials.getGmailAddress(); // Show gmail address at name column on credentials page
+        return "ProgEdu Mail"; // Show gmail address at name column on credentials page
     }
 }

@@ -93,8 +93,8 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
         String buildStatus = Objects.requireNonNull(run.getResult()).toString();
 
         String consoleText = String.join("\n", run.getLog(9999)); // Get full console text
-        List<Map<String, String>> message = extractMessage(consoleText);
-        sendMail(listener, buildStatus, message);
+        FeedbackInformation[] information = extractMessage(consoleText);
+        sendMail(listener, buildStatus, information);
     }
 
     /**
@@ -103,7 +103,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
      * @param consoleText - Console text of the build.
      * @return - Extracted messages from the console text.
      */
-    private List<Map<String, String>> extractMessage(String consoleText) {
+    private FeedbackInformation[] extractMessage(String consoleText) {
         String status = null;
 
         // Find the build status such as utf, cpf
@@ -113,19 +113,18 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
             status = matcher.group(1);
         }
 
-        // Extract the build messages
+        // Extract the build information
         ExtractFeedback extractFeedback = new ExtractFeedback(this.assignmentType, status, consoleText);
         String feedback = extractFeedback.getFeedback();
 
         ObjectMapper mapper = new ObjectMapper();
+        FeedbackInformation[] feedbackInformation = null;
         try {
-            return mapper.readValue(
-                    feedback, new TypeReference<List<Map<String, String>>>() {
-                    });
+            feedbackInformation = mapper.readValue(feedback, FeedbackInformation[].class);
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return null;
+        return feedbackInformation;
     }
 
 
@@ -134,14 +133,11 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
      *
      * @param listener     - Listener of the build
      * @param buildStatus  - SUCCESS or FAILURE
-     * @param buildMessage - Extracted message from console text
+     * @param information  - Extract information from console text
      */
-    private void sendMail(TaskListener listener, String buildStatus, List<Map<String, String>> buildMessage) {
-        String sender = this.credential.getGmailAddress(); // Sender's gmail
+    private void sendMail(TaskListener listener, String buildStatus, FeedbackInformation[] information) {
+        String sender = this.credential.getEmailAccount(); // Sender's gmail
         String recipients = this.studentEmail; // Recipients' gmail
-
-        // Setup timezone
-        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Taipei"));
 
         // Setup mail server
         Properties props = System.getProperties();
@@ -169,22 +165,22 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
         status.put("csf", "Coding Style Failure");
         status.put("utf", "Unit Test Failure");
 
-        buildMessage.forEach(message -> {
+        for(FeedbackInformation info: information){
             mailMessageContent
-                    .append("Status: ").append(status.get(message.get("status"))).append("\n")
-                    .append("File name: ").append(message.get("fileName")).append("\n")
-                    .append("Message: ").append(message.get("message")).append("\n")
-                    .append("Symptom: ").append(message.get("symptom")).append("\n")
-                    .append("Suggest: ").append(message.get("suggest")).append("\n\n")
-                    .append("Build finish at ").append(new Date().toString());
-        });
+                    .append("Status: ").append(status.get(info.getStatus())).append("\n")
+                    .append("File name: ").append(info.getFileName()).append("\n")
+                    .append("Line: ").append(info.getLine()).append("\n")
+                    .append("Message: ").append(info.getMessage()).append("\n")
+                    .append("Symptom: ").append(info.getSymptom()).append("\n")
+                    .append("Suggest: ").append(info.getSuggest()).append("\n\n");
+        }
 
         try {
             // Set message of mail
             Message mailMessage = new MimeMessage(session);
             mailMessage.setFrom(new InternetAddress(sender, "ProgEdu"));
             mailMessage.addRecipient(Message.RecipientType.TO, new InternetAddress(recipients));
-            mailMessage.setSubject("ProgEdu Test " + buildStatus); // Title of mail
+            mailMessage.setSubject("ProgEdu檢測通知"); // Title of mail
             mailMessage.setText(mailMessageContent.toString()); // Content of mail
 
             listener.getLogger().println("Sending mail to " + recipients);
