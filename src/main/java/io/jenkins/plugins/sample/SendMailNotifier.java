@@ -20,6 +20,9 @@ import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 
@@ -28,6 +31,8 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -136,7 +141,8 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
      * @param buildStatus  - SUCCESS or FAILURE
      * @param buildMessage - Extracted message from console text
      */
-    private void sendMail(TaskListener listener, String buildStatus, List<Map<String, String>> buildMessage) {
+    private void sendMail(TaskListener listener, String buildStatus, List<Map<String, String>> buildMessage)
+            throws IOException {
         String sender = this.credential.getGmailAddress(); // Sender's gmail
         String recipients = this.studentEmail; // Recipients' gmail
 
@@ -169,6 +175,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
         status.put("csf", "Coding Style Failure");
         status.put("utf", "Unit Test Failure");
 
+        /*
         buildMessage.forEach(message -> {
             mailMessageContent
                     .append("Status: ").append(status.get(message.get("status"))).append("\n")
@@ -178,6 +185,29 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
                     .append("Suggest: ").append(message.get("suggest")).append("\n\n")
                     .append("Build finish at ").append(new Date().toString());
         });
+        */
+
+        // Set up HTML content
+        Document doc = Jsoup.parse(String.join("\n",
+                Files.readAllLines(
+                        Paths.get(
+                                SendMailNotifier.class.getResource("MailContent.html").getPath()
+                        )
+                )
+        ));
+
+        Element tbody = doc.selectFirst("tbody");
+
+        buildMessage.forEach(message -> {
+            Element tr = new Element("tr");
+            tr.appendChild(new Element("td").text(status.get(message.get("status"))));
+            tr.appendChild(new Element("td").text(message.get("fileName")));
+            tr.appendChild(new Element("td").text(message.get("message")));
+            tr.appendChild(new Element("td").text(message.get("symptom")));
+            tr.appendChild(new Element("td").text(message.get("suggest")));
+            tbody.appendChild(tr);
+        });
+
 
         try {
             // Set message of mail
@@ -186,6 +216,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
             mailMessage.addRecipient(Message.RecipientType.TO, new InternetAddress(recipients));
             mailMessage.setSubject("ProgEdu Test " + buildStatus); // Title of mail
             mailMessage.setText(mailMessageContent.toString()); // Content of mail
+            mailMessage.setContent(doc.toString(), "text/html");
 
             listener.getLogger().println("Sending mail to " + recipients);
             Transport.send(mailMessage); // Send message
