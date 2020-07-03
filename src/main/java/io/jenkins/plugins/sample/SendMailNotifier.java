@@ -19,7 +19,6 @@ import hudson.tasks.BuildStepDescriptor;
 import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.type.TypeReference;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -31,8 +30,6 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -94,7 +91,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
     @Override
     public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
-            throws InterruptedException, IOException {
+            throws IOException {
         String buildStatus = Objects.requireNonNull(run.getResult()).toString();
 
         String consoleText = String.join("\n", run.getLog(9999)); // Get full console text
@@ -136,16 +133,16 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     /**
      * Send mail to students.
      *
-     * @param listener     - Listener of the build
-     * @param buildStatus  - SUCCESS or FAILURE
-     * @param information  - Extract information from console text
+     * @param listener    - Listener of the build
+     * @param buildStatus - SUCCESS or FAILURE
+     * @param information - Extract information from console text
      */
-    private void sendMail(TaskListener listener, String buildStatus, FeedbackInformation[] information)
-            throws IOException{
+    private void sendMail(TaskListener listener, String buildStatus, FeedbackInformation[] information) {
         String sender = this.credential.getEmailAccount(); // Sender's gmail
         String recipients = this.studentEmail; // Recipients' gmail
 
-        // Setup mail server
+        // Setup mail ser
+        // .++.ver
         Properties props = System.getProperties();
         props.put("mail.smtp.host", this.smtpHost);
         props.put("mail.smtp.port", this.smtpPort);
@@ -159,9 +156,6 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
             }
         });
 
-        // Set mail content
-        StringBuilder mailMessageContent = new StringBuilder();
-        mailMessageContent.append("ProgEdu Build ").append(buildStatus).append("\n");
 
         // Status abbreviation to full
         Map<String, String> status = new HashMap<>();
@@ -171,36 +165,29 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
         status.put("csf", "Coding Style Failure");
         status.put("utf", "Unit Test Failure");
 
-        for(FeedbackInformation info: information){
-            mailMessageContent
-                    .append("Status: ").append(status.get(info.getStatus())).append("\n")
-                    .append("File name: ").append(info.getFileName()).append("\n")
-                    .append("Line: ").append(info.getLine()).append("\n")
-                    .append("Message: ").append(info.getMessage()).append("\n")
-                    .append("Symptom: ").append(info.getSymptom()).append("\n")
-                    .append("Suggest: ").append(info.getSuggest()).append("\n\n");
+
+        // Set up HTML mail content.
+        // Since the HTML file will package in jar file, getResource method can't get it
+        // Thus, we use getResourceAsStream method instead
+        Scanner sca = new Scanner(SendMailNotifier.class.getResourceAsStream("MailContent.html"));
+
+        StringBuilder htmlContent = new StringBuilder();
+        while (sca.hasNextLine()) {
+            htmlContent.append(sca.nextLine()).append("\n");
         }
 
-        // Set up HTML content
-        Document doc = Jsoup.parse(String.join("\n",
-                Files.readAllLines(
-                        Paths.get(
-                                SendMailNotifier.class.getResource("MailContent.html").getPath()
-                        )
-                )
-        ));
-
+        Document doc = Jsoup.parse(htmlContent.toString());
         Element tbody = doc.selectFirst("tbody");
 
-        buildMessage.forEach(message -> {
+        for (FeedbackInformation info : information) {
             Element tr = new Element("tr");
-            tr.appendChild(new Element("td").text(status.get(message.get("status"))));
-            tr.appendChild(new Element("td").text(message.get("fileName")));
-            tr.appendChild(new Element("td").text(message.get("message")));
-            tr.appendChild(new Element("td").text(message.get("symptom")));
-            tr.appendChild(new Element("td").text(message.get("suggest")));
+            tr.appendChild(new Element("td").text(info.getFileName()));
+            tr.appendChild(new Element("td").text(info.getLine()));
+            tr.appendChild(new Element("td").text(info.getMessage()));
+            tr.appendChild(new Element("td").text(info.getSymptom()));
+            tr.appendChild(new Element("td").text(info.getSuggest()));
             tbody.appendChild(tr);
-        });
+        }
 
 
         try {

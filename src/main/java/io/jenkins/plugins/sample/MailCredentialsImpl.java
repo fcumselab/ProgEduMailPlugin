@@ -22,7 +22,6 @@ public class MailCredentialsImpl extends BaseStandardCredentials implements Mail
         this.emailAccount = emailAccount;
         this.password = Secret.fromString(password);
         this.description = description;
-        System.out.println("emailAccount: " + emailAccount);
     }
 
     @Override
