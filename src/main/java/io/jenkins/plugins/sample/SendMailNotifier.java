@@ -92,11 +92,13 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     @Override
     public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
             throws IOException {
-        String buildStatus = Objects.requireNonNull(run.getResult()).toString();
+        String buildStatus = Objects.requireNonNull(run.getResult()).toString().toLowerCase();
+        int buildNumber = run.number;
 
         String consoleText = String.join("\n", run.getLog(9999)); // Get full console text
         FeedbackInformation[] information = extractMessage(consoleText);
-        sendMail(listener, buildStatus, information);
+        Document mailContent = setUpMailContent(buildStatus, buildNumber, information);
+        sendMail(listener, mailContent);
     }
 
     /**
@@ -129,20 +131,54 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
         return feedbackInformation;
     }
 
+    /**
+     * Set up HTML mail content.
+     *
+     * @param buildStatus - "success" or "failure".
+     * @param buildNumber  - The build number.
+     * @param information - Extract information from console text.
+     * @return doc - HTML content of mail.
+     */
+    private Document setUpMailContent(String buildStatus, int buildNumber, FeedbackInformation[] information) {
+
+        // Since the HTML file will package in a jar file, "getResource" method can't get it.
+        // Thus, we use "getResourceAsStream" method instead.
+        Scanner scanner = new Scanner(getClass().getResourceAsStream("MailContent.html"));
+
+        // Get the whole html content
+        StringBuilder htmlContent = new StringBuilder();
+        while (scanner.hasNextLine()) {
+            htmlContent.append(scanner.nextLine()).append("\n");
+        }
+
+        Document doc = Jsoup.parse(htmlContent.toString()); // Parse the html content
+
+        doc.selectFirst(".build-number").text(String.valueOf(buildNumber));
+        doc.selectFirst(".build-status").text(buildStatus).addClass(buildStatus);
+
+        Element tbody = doc.selectFirst("tbody");
+        for (FeedbackInformation info : information) {
+            Element tr = new Element("tr");
+            tr.appendChild(new Element("td").text(info.getFileName()));
+            tr.appendChild(new Element("td").text(info.getLine()));
+            tr.appendChild(new Element("td").text(info.getMessage()));
+            tr.appendChild(new Element("td").text(info.getSymptom()));
+            tbody.appendChild(tr);
+        }
+        return doc;
+    }
 
     /**
      * Send mail to students.
      *
-     * @param listener    - Listener of the build
-     * @param buildStatus - SUCCESS or FAILURE
-     * @param information - Extract information from console text
+     * @param listener - Listener of the build
+     * @param doc      - Mail content that is HTML
      */
-    private void sendMail(TaskListener listener, String buildStatus, FeedbackInformation[] information) {
+    private void sendMail(TaskListener listener, Document doc) {
         String sender = this.credential.getEmailAccount(); // Sender's gmail
         String recipients = this.studentEmail; // Recipients' gmail
 
-        // Setup mail ser
-        // .++.ver
+        // Setup mail server
         Properties props = System.getProperties();
         props.put("mail.smtp.host", this.smtpHost);
         props.put("mail.smtp.port", this.smtpPort);
@@ -155,40 +191,6 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
                 return new PasswordAuthentication(sender, credential.getPassword().getPlainText());
             }
         });
-
-
-        // Status abbreviation to full
-        Map<String, String> status = new HashMap<>();
-        status.put("ini", "Initial");
-        status.put("bs", "Build Success");
-        status.put("cpf", "Compile Failure");
-        status.put("csf", "Coding Style Failure");
-        status.put("utf", "Unit Test Failure");
-
-
-        // Set up HTML mail content.
-        // Since the HTML file will package in jar file, getResource method can't get it
-        // Thus, we use getResourceAsStream method instead
-        Scanner sca = new Scanner(SendMailNotifier.class.getResourceAsStream("MailContent.html"));
-
-        StringBuilder htmlContent = new StringBuilder();
-        while (sca.hasNextLine()) {
-            htmlContent.append(sca.nextLine()).append("\n");
-        }
-
-        Document doc = Jsoup.parse(htmlContent.toString());
-        Element tbody = doc.selectFirst("tbody");
-
-        for (FeedbackInformation info : information) {
-            Element tr = new Element("tr");
-            tr.appendChild(new Element("td").text(info.getFileName()));
-            tr.appendChild(new Element("td").text(info.getLine()));
-            tr.appendChild(new Element("td").text(info.getMessage()));
-            tr.appendChild(new Element("td").text(info.getSymptom()));
-            tr.appendChild(new Element("td").text(info.getSuggest()));
-            tbody.appendChild(tr);
-        }
-
 
         try {
             // Set message of mail

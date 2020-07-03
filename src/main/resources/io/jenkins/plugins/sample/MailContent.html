@@ -1,4 +1,5 @@
 <body>
+<p>#<span class="build-number"></span> <span class="build-status"></span></p>
 <table style="border-collapse: collapse" border="2">
     <thead>
         <tr>
@@ -6,10 +7,33 @@
             <th>Line</th>
             <th>Message</th>
             <th>Symptom</th>
-            <th>Suggest</th>
         </tr>
     </thead>
     <tbody>
     </tbody>
 </table>
+<style>
+    * {
+        font-family: 'Noto Sans', 'Microsoft JhengHei','Heiti TC', serif;
+    }
+
+    thead tr {
+        height: 32px;
+        line-height: 32px;
+    }
+
+    .build-status {
+        color: white;
+        border-radius: 5px;
+        padding: 0 5px;
+    }
+
+    .success {
+        background-color: #0DCC42;
+    }
+
+    .failure {
+        background-color: #D91A2A;
+    }
+</style>
 </body>
