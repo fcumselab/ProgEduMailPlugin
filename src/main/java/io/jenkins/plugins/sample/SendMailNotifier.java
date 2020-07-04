@@ -92,33 +92,43 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     @Override
     public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
             throws IOException {
-        String buildStatus = Objects.requireNonNull(run.getResult()).toString().toLowerCase();
-        int buildNumber = run.number;
+//        String buildStatus = Objects.requireNonNull(run.getResult()).toString().toLowerCase();
 
+        int buildNumber = run.number;
         String consoleText = String.join("\n", run.getLog(9999)); // Get full console text
-        FeedbackInformation[] information = extractMessage(consoleText);
+        String buildStatus = getBuildStatus(consoleText);
+
+        FeedbackInformation[] information = extractMessage(buildStatus, consoleText);
         Document mailContent = setUpMailContent(buildStatus, buildNumber, information);
         sendMail(listener, mailContent);
     }
 
     /**
-     * Extract message that will send to student from full console text
+     * Find the build status such as utf, cpf.
      *
-     * @param consoleText - Console text of the build.
-     * @return - Extracted messages from the console text.
+     * @param consoleText - Full console text.
+     * @return buildStatus - Build status such as utf, cpf.
      */
-    private FeedbackInformation[] extractMessage(String consoleText) {
-        String status = null;
-
-        // Find the build status such as utf, cpf
+    private String getBuildStatus(String consoleText) {
+        String buildStatus = "";
         Pattern pattern = Pattern.compile("WEB return value is :.*\"status\":\"(.*)\""); // Get build status
         Matcher matcher = pattern.matcher(consoleText);
         while (matcher.find()) {
-            status = matcher.group(1);
+            buildStatus = matcher.group(1);
         }
+        return buildStatus;
+    }
 
+    /**
+     * Extract message that will send to student from full console text
+     *
+     * @param buildStatus - Build status such as utf, cpf.
+     * @param consoleText - Console text of the build.
+     * @return - Extracted messages from the console text.
+     */
+    private FeedbackInformation[] extractMessage(String buildStatus, String consoleText) {
         // Extract the build information
-        ExtractFeedback extractFeedback = new ExtractFeedback(this.assignmentType, status, consoleText);
+        ExtractFeedback extractFeedback = new ExtractFeedback(this.assignmentType, buildStatus, consoleText);
         String feedback = extractFeedback.getFeedback();
 
         ObjectMapper mapper = new ObjectMapper();
@@ -134,12 +144,21 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     /**
      * Set up HTML mail content.
      *
-     * @param buildStatus - "success" or "failure".
-     * @param buildNumber  - The build number.
+     * @param buildStatus - Build status such as utf, cpf.
+     * @param buildNumber - The build number.
      * @param information - Extract information from console text.
      * @return doc - HTML content of mail.
      */
     private Document setUpMailContent(String buildStatus, int buildNumber, FeedbackInformation[] information) {
+
+        // Status abbreviation to full
+        Map<String, String> statusMap = new HashMap<>();
+        statusMap.put("ini", "Initial");
+        statusMap.put("bs", "Build Success");
+        statusMap.put("cpf", "Compile Failure");
+        statusMap.put("csf", "Coding Style Failure");
+        statusMap.put("utf", "Unit Test Failure");
+        String fullBuildStatus = statusMap.get(buildStatus);
 
         // Since the HTML file will package in a jar file, "getResource" method can't get it.
         // Thus, we use "getResourceAsStream" method instead.
@@ -154,7 +173,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
         Document doc = Jsoup.parse(htmlContent.toString()); // Parse the html content
 
         doc.selectFirst(".build-number").text(String.valueOf(buildNumber));
-        doc.selectFirst(".build-status").text(buildStatus).addClass(buildStatus);
+        doc.selectFirst(".build-status").text(fullBuildStatus).addClass(buildStatus);
 
         Element tbody = doc.selectFirst("tbody");
         for (FeedbackInformation info : information) {
