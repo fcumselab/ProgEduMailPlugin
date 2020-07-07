@@ -4,9 +4,9 @@ import com.cloudbees.plugins.credentials.Credentials;
 import hudson.util.Secret;
 
 public interface MailCredentials extends Credentials {
-    String getEmailAccount();
+  String getEmailAccount();
 
-    Secret getPassword();
+  Secret getPassword();
 
-    String getDescription();
+  String getDescription();
 }
