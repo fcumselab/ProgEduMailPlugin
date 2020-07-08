@@ -177,6 +177,11 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     statusMap.put("cpf", "Compile Failure");
     statusMap.put("csf", "Coding Style Failure");
     statusMap.put("utf", "Unit Test Failure");
+    statusMap.put("uitf", "UI Test Failure");
+    statusMap.put("whf", "HTML Failure");
+    statusMap.put("wsf", "CSS Failure");
+    statusMap.put("wef", "JavaScript Failure");
+
     String fullBuildStatus = statusMap.get(buildStatus);
 
     // Since the HTML file will package in a jar file, "getResource" method can't get it.
