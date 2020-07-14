@@ -315,7 +315,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
      * @return - If assignment type is valid or not
      */
     public FormValidation doCheckAssignmentType(@QueryParameter String assignmentType) {
-      if (assignmentType.matches("(maven|java|android|web)(?i)")) {
+      if (assignmentType.matches("(maven|javac|android|web)(?i)")) {
         return FormValidation.ok();
       }
       return FormValidation.error(
@@ -363,7 +363,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
       return result
               .includeEmptyValue()
               .add("maven")
-              .add("java")
+              .add("javac")
               .add("android")
               .add("web");
     }
