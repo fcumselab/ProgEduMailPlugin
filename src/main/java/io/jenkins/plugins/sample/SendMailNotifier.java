@@ -24,7 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.mail.Message;
@@ -167,8 +166,8 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
    * @param information - Extract information from console text.
    * @return doc - HTML content of mail.
    */
-  private Document setUpMailContent(String buildStatus,
-                                    int buildNumber, FeedbackInformation[] information) {
+  private Document setUpMailContent(String buildStatus, int buildNumber,
+                                    FeedbackInformation[] information) throws IOException {
 
     // Status abbreviation to full
     Map<String, String> statusMap = new HashMap<>();
@@ -186,18 +185,11 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
     // Since the HTML file will package in a jar file, "getResource" method can't get it.
     // Thus, we use "getResourceAsStream" method instead.
-    Scanner scanner = new Scanner(getClass().getResourceAsStream("MailContent.html"));
+    Document doc = Jsoup.parse(getClass().getResourceAsStream("MailContent.html"),
+            "UTF-8", System.getProperty("user.dir"));
 
-    // Get the whole html content
-    StringBuilder htmlContent = new StringBuilder();
-    while (scanner.hasNextLine()) {
-      htmlContent.append(scanner.nextLine()).append("\n");
-    }
-
-    Document doc = Jsoup.parse(htmlContent.toString()); // Parse the html content
-
-    doc.selectFirst(".build-number").text(String.valueOf(buildNumber));
-    doc.selectFirst(".build-status").text(fullBuildStatus).addClass(buildStatus);
+    doc.selectFirst("#build-number").text(String.valueOf(buildNumber));
+    doc.selectFirst("#build-status").text(fullBuildStatus).addClass(buildStatus);
 
     Element tbody = doc.selectFirst("tbody");
     for (FeedbackInformation info : information) {
