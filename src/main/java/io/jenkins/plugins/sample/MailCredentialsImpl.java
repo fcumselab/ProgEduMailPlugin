@@ -13,6 +13,8 @@ import org.kohsuke.stapler.DataBoundConstructor;
 public class MailCredentialsImpl extends BaseStandardCredentials implements MailCredentials {
   private final String emailAccount;
   private final Secret password;
+  private final String smtpHost;
+  private final String smtpPort;
   private final String description;
   private static final String kind = "Email Credential";
 
@@ -23,12 +25,17 @@ public class MailCredentialsImpl extends BaseStandardCredentials implements Mail
    * @param description  - Credential's description
    * @param emailAccount - Email account
    * @param password     - Email password
+   * @param smtpHost     - SMTP host
+   * @param smtpPort     - SMTP port
    */
   @DataBoundConstructor
-  public MailCredentialsImpl(String id, String description, String emailAccount, String password) {
+  public MailCredentialsImpl(String id, String description, String emailAccount, String password,
+                             String smtpHost, String smtpPort) {
     super(id, description);
     this.emailAccount = emailAccount;
     this.password = Secret.fromString(password);
+    this.smtpHost = smtpHost;
+    this.smtpPort = smtpPort;
     this.description = description;
   }
 
@@ -40,6 +47,16 @@ public class MailCredentialsImpl extends BaseStandardCredentials implements Mail
   @Override
   public Secret getPassword() {
     return password;
+  }
+
+  @Override
+  public String getSmtpHost() {
+    return smtpHost;
+  }
+
+  @Override
+  public String getSmtpPort() {
+    return smtpPort;
   }
 
   @Extension

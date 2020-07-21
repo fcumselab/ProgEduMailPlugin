@@ -1,15 +1,21 @@
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:f="/lib/form" xmlns:st="jelly:stapler">
-    <f:entry title="Email Account" field="emailAccount">
+    <f:entry title="${%EmailAccount}" field="emailAccount">
         <f:textbox/>
     </f:entry>
-    <f:entry title="Password" field="password">
+    <f:entry title="${%Password}" field="password">
         <f:password/>
     </f:entry>
-    <f:entry title="ID" field="id">
+    <f:entry title="${%SMTPHost}" field="smtpHost">
+        <f:textbox />
+    </f:entry>
+    <f:entry title="${%SMTPPort}" field="smtpPort">
+        <f:textbox />
+    </f:entry>
+    <f:entry title="${%ID}" field="id">
         <f:textbox/>
     </f:entry>
-    <f:entry title="Description" field="description">
+    <f:entry title="${%Description}" field="description">
         <f:textbox/>
     </f:entry>
 </j:jelly>

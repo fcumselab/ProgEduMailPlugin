@@ -8,5 +8,9 @@ public interface MailCredentials extends Credentials {
 
   Secret getPassword();
 
+  String getSmtpHost();
+
+  String getSmtpPort();
+
   String getDescription();
 }

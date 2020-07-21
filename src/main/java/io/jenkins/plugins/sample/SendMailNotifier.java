@@ -47,38 +47,23 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
   private final String studentEmail;
   private final String credentialsId;
-  private final String smtpHost;
-  private final int smtpPort;
   private final String assignmentType;
-  private final MailCredentials credential;
+  private MailCredentials credential;
 
   /**
    * Constructor.
    *
    * @param studentEmail   - Student Email
    * @param credentialsId  - Credentials ID
-   * @param smtpHost       - SMTP host
-   * @param smtpPort       - SMTP port
    * @param assignmentType - Assignment Type
    */
   @DataBoundConstructor
-  public SendMailNotifier(String studentEmail, String credentialsId, String smtpHost,
-                          int smtpPort, String assignmentType) {
+  public SendMailNotifier(String studentEmail, String credentialsId, String assignmentType) {
     this.studentEmail = studentEmail;
     this.credentialsId = credentialsId;
-    this.smtpHost = smtpHost;
-    this.smtpPort = smtpPort;
     this.assignmentType = assignmentType;
 
-    // Get all available credentials
-    List<MailCredentials> credentials = CredentialsProvider.lookupCredentials(
-            MailCredentials.class, Jenkins.getInstanceOrNull(), ACL.SYSTEM,
-            Collections.<DomainRequirement>emptyList()
-    );
-
-    // Get the credential from the above list
-    this.credential = CredentialsMatchers.firstOrNull(credentials,
-            CredentialsMatchers.allOf(CredentialsMatchers.withId(credentialsId)));
+    getCredentialFromID();
   }
 
   public String getStudentEmail() {
@@ -87,14 +72,6 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
   public String getAssignmentType() {
     return assignmentType;
-  }
-
-  public String getSmtpHost() {
-    return smtpHost;
-  }
-
-  public int getSmtpPort() {
-    return smtpPort;
   }
 
   public String getCredentialsId() {
@@ -108,15 +85,38 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
   @Override
   public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
           throws IOException {
-    // String buildStatus = Objects.requireNonNull(run.getResult()).toString().toLowerCase();
+
+    getCredentialFromID();
 
     int buildNumber = run.number;
+    if (buildNumber == 1) { // Initial commit doesn't need to send mail
+      return;
+    }
+    listener.getLogger().println(
+            "--------------------------SendMailNotifier--------------------------");
     String consoleText = String.join("\n", run.getLog(9999)); // Get full console text
     String buildStatus = getBuildStatus(consoleText);
 
     FeedbackInformation[] information = extractMessage(buildStatus, consoleText);
     Document mailContent = setUpMailContent(buildStatus, buildNumber, information);
     sendMail(listener, mailContent);
+    listener.getLogger().println(
+            "--------------------------SendMailNotifier--------------------------");
+  }
+
+  /**
+   * Get credential from credential ID.
+   */
+  public void getCredentialFromID() {
+    // Get all available credentials
+    List<MailCredentials> credentials = CredentialsProvider.lookupCredentials(
+            MailCredentials.class, Jenkins.getInstanceOrNull(), ACL.SYSTEM,
+            Collections.<DomainRequirement>emptyList()
+    );
+
+    // Get the credential from the above list
+    this.credential = CredentialsMatchers.firstOrNull(credentials,
+            CredentialsMatchers.allOf(CredentialsMatchers.withId(credentialsId)));
   }
 
   /**
@@ -215,8 +215,8 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
     // Setup mail server
     Properties props = System.getProperties();
-    props.put("mail.smtp.host", this.smtpHost);
-    props.put("mail.smtp.port", this.smtpPort);
+    props.put("mail.smtp.host", this.credential.getSmtpHost());
+    props.put("mail.smtp.port", this.credential.getSmtpPort());
     props.put("mail.smtp.ssl.enable", "true");
     props.put("mail.smtp.auth", "true");
 
@@ -268,36 +268,6 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
       } else {
         return FormValidation.error(Messages.SendMailNotifier_DescriptorImpl_errors_wrongFormat());
       }
-    }
-
-    /**
-     * Validation for SMTP host.
-     *
-     * @param smtpHost - SMTP host
-     * @return - If SMTP host is valid or not
-     */
-    public FormValidation doCheckSmtpHost(@QueryParameter String smtpHost) {
-      if (smtpHost.matches("[\\w]+(\\.[\\w]+)+")) {
-        return FormValidation.ok();
-      }
-      return FormValidation.error(
-              Messages.SendMailNotifier_DescriptorImpl_errors_wrongSMTPFormat());
-    }
-
-    /**
-     * Validation for SMTP port.
-     *
-     * @param smtpPort - SMTP port
-     * @return - If SMTP port is valid or not
-     */
-    public FormValidation doCheckSmtpPort(@QueryParameter String smtpPort) {
-      if (smtpPort.matches("[\\d]+")) {
-        int port = Integer.parseInt(smtpPort);
-        if (0 <= port && port <= 65535) {
-          return FormValidation.ok();
-        }
-      }
-      return FormValidation.error(Messages.SendMailNotifier_DescriptorImpl_errors_wrongSMTPPort());
     }
 
     /**
