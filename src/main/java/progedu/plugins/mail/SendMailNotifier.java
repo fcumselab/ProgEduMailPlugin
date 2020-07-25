@@ -4,6 +4,7 @@ import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
+import com.google.gson.Gson;
 import fcu.selab.progextractor.data.ExtractFeedback;
 import hudson.Extension;
 import hudson.FilePath;
@@ -35,7 +36,6 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildStep;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.jenkinsci.Symbol;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -45,6 +45,7 @@ import org.kohsuke.stapler.QueryParameter;
 
 public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
+  private static final int INIT_COMMIT = 1;
   private final String studentEmail;
   private final String credentialsId;
   private final String assignmentType;
@@ -89,7 +90,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     getCredentialFromID();
 
     int buildNumber = run.number;
-    if (buildNumber == 1) { // Initial commit doesn't need to send mail
+    if (buildNumber == INIT_COMMIT) { // Initial commit doesn't need to send mail
       return;
     }
     listener.getLogger().println(
@@ -148,14 +149,8 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
             this.assignmentType, buildStatus, consoleText);
     String feedback = extractFeedback.getFeedback();
 
-    ObjectMapper mapper = new ObjectMapper();
-    FeedbackInformation[] feedbackInformation = null;
-    try {
-      feedbackInformation = mapper.readValue(feedback, FeedbackInformation[].class);
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-    return feedbackInformation;
+    Gson gson = new Gson();
+    return gson.fromJson(feedback, FeedbackInformation[].class);
   }
 
   /**
