@@ -1,4 +1,4 @@
-package io.jenkins.plugins.sample;
+package progedu.plugins.mail;
 
 public class FeedbackInformation {
   private String status;

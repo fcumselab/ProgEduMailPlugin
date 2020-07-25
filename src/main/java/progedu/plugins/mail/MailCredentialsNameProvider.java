@@ -1,4 +1,4 @@
-package io.jenkins.plugins.sample;
+package progedu.plugins.mail;
 
 import com.cloudbees.plugins.credentials.CredentialsNameProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
