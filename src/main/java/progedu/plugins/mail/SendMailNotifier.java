@@ -64,7 +64,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     this.credentialsId = credentialsId;
     this.assignmentType = assignmentType;
 
-    getCredentialFromID();
+    setCredentialFromID();
   }
 
   public String getStudentEmail() {
@@ -87,7 +87,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
   public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
           throws IOException {
 
-    getCredentialFromID();
+    setCredentialFromID();
 
     int buildNumber = run.number;
     if (buildNumber == INIT_COMMIT) { // Initial commit doesn't need to send mail
@@ -99,7 +99,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     String buildStatus = getBuildStatus(consoleText);
 
     FeedbackInformation[] information = extractMessage(buildStatus, consoleText);
-    Document mailContent = setUpMailContent(buildStatus, buildNumber, information);
+    Document mailContent = getMailContent(buildStatus, buildNumber, information);
     sendMail(listener, mailContent);
     listener.getLogger().println(
             "--------------------------SendMailNotifier--------------------------");
@@ -108,7 +108,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
   /**
    * Get credential from credential ID.
    */
-  public void getCredentialFromID() {
+  public void setCredentialFromID() {
     // Get all available credentials
     List<MailCredentials> credentials = CredentialsProvider.lookupCredentials(
             MailCredentials.class, Jenkins.getInstanceOrNull(), ACL.SYSTEM,
@@ -161,7 +161,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
    * @param information - Extract information from console text.
    * @return doc - HTML content of mail.
    */
-  private Document setUpMailContent(String buildStatus, int buildNumber,
+  private Document getMailContent(String buildStatus, int buildNumber,
                                     FeedbackInformation[] information) throws IOException {
 
     // Status abbreviation to full
