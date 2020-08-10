@@ -48,8 +48,10 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
   private static final int INIT_COMMIT = 1;
   private final String studentEmail;
   private final String credentialsId;
+  private final String releaseTime;
   private final String assignmentType;
   private MailCredentials credential;
+  private String mailTitle;
 
   /**
    * Constructor.
@@ -59,9 +61,11 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
    * @param assignmentType - Assignment Type
    */
   @DataBoundConstructor
-  public SendMailNotifier(String studentEmail, String credentialsId, String assignmentType) {
+  public SendMailNotifier(
+          String studentEmail, String credentialsId, String releaseTime, String assignmentType) {
     this.studentEmail = studentEmail;
     this.credentialsId = credentialsId;
+    this.releaseTime = releaseTime;
     this.assignmentType = assignmentType;
 
     setCredentialFromID();
@@ -69,6 +73,10 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
   public String getStudentEmail() {
     return studentEmail;
+  }
+
+  public String getReleaseTime() {
+    return this.releaseTime;
   }
 
   public String getAssignmentType() {
@@ -89,18 +97,21 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
     setCredentialFromID();
 
+    Document mailContent = null;
     int buildNumber = run.number;
-    if (buildNumber == INIT_COMMIT) { // Initial commit doesn't need to send mail
-      return;
-    }
     listener.getLogger().println(
             "--------------------------SendMailNotifier--------------------------");
-    String consoleText = String.join("\n", run.getLog(9999)); // Get full console text
-    String buildStatus = getBuildStatus(consoleText);
+    if (buildNumber == INIT_COMMIT) { // Initial commit
+      mailContent = getInitMailContent();
+    } else {
+      String consoleText = String.join("\n", run.getLog(9999)); // Get full console text
+      String buildStatus = getBuildStatus(consoleText);
 
-    FeedbackInformation[] information = extractMessage(buildStatus, consoleText);
-    Document mailContent = getMailContent(buildStatus, buildNumber, information);
+      FeedbackInformation[] information = extractMessage(buildStatus, consoleText);
+      mailContent = getMailContent(buildStatus, buildNumber, information);
+    }
     sendMail(listener, mailContent);
+
     listener.getLogger().println(
             "--------------------------SendMailNotifier--------------------------");
   }
@@ -154,6 +165,20 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
   }
 
   /**
+   * Get initial HTML mail content
+   *
+   * @return HTML content of mail
+   */
+  private Document getInitMailContent() throws IOException {
+    Document doc = Jsoup.parse(getClass().getResourceAsStream("InitMailContent.html"),
+            "UTF-8", System.getProperty("user.dir"));
+
+    doc.selectFirst("#release-time").text(this.releaseTime);
+    this.mailTitle = "ProgEdu作業通知";
+    return doc;
+  }
+
+  /**
    * Set up HTML mail content.
    *
    * @param buildStatus - Build status such as utf, cpf.
@@ -195,6 +220,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
       tr.appendChild(new Element("td").text(info.getSymptom()));
       tbody.appendChild(tr);
     }
+    this.mailTitle = "ProgEdu檢測通知";
     return doc;
   }
 
@@ -227,7 +253,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
       Message mailMessage = new MimeMessage(session);
       mailMessage.setFrom(new InternetAddress(sender, "ProgEdu"));
       mailMessage.addRecipient(Message.RecipientType.TO, new InternetAddress(recipients));
-      mailMessage.setSubject("ProgEdu檢測通知"); // Title of mail
+      mailMessage.setSubject(this.mailTitle); // Title of mail
       mailMessage.setContent(doc.toString(), "text/html");
 
       listener.getLogger().println("Sending mail to " + recipients);

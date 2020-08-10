@@ -6,6 +6,9 @@
     <f:entry title="${%SenderEmail}" field="credentialsId">
         <c:select />
     </f:entry>
+    <f:entry title="${%ReleaseTime}" field="releaseTime">
+        <f:textbox />
+    </f:entry>
     <f:entry title="${%AssignmentType}" field="assignmentType">
         <f:select />
     </f:entry>
