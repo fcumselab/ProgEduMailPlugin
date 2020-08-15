@@ -49,6 +49,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
   private final String studentEmail;
   private final String credentialsId;
   private final String releaseTime;
+  private final String progEduURL;
   private final String assignmentType;
   private MailCredentials credential;
   private String mailTitle;
@@ -58,14 +59,16 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
    *
    * @param studentEmail   - Student Email
    * @param credentialsId  - Credentials ID
+   * @param progEduURL     - ProgEdu URL
    * @param assignmentType - Assignment Type
    */
   @DataBoundConstructor
   public SendMailNotifier(
-          String studentEmail, String credentialsId, String releaseTime, String assignmentType) {
+          String studentEmail, String credentialsId, String releaseTime, String progEduURL, String assignmentType) {
     this.studentEmail = studentEmail;
     this.credentialsId = credentialsId;
     this.releaseTime = releaseTime;
+    this.progEduURL = progEduURL;
     this.assignmentType = assignmentType;
 
     setCredentialFromID();
@@ -77,6 +80,10 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
 
   public String getReleaseTime() {
     return this.releaseTime;
+  }
+
+  public String getProgEduURL() {
+    return progEduURL;
   }
 
   public String getAssignmentType() {
@@ -102,7 +109,7 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
     listener.getLogger().println(
             "--------------------------SendMailNotifier--------------------------");
     if (buildNumber == INIT_COMMIT) { // Initial commit
-      mailContent = getInitMailContent();
+      mailContent = getInitMailContent(workspace);
     } else {
       String consoleText = String.join("\n", run.getLog(9999)); // Get full console text
       String buildStatus = getBuildStatus(consoleText);
@@ -167,13 +174,27 @@ public class SendMailNotifier extends Notifier implements SimpleBuildStep {
   /**
    * Get initial HTML mail content
    *
+   * @param workspace - workspace
    * @return HTML content of mail
    */
-  private Document getInitMailContent() throws IOException {
+  private Document getInitMailContent(FilePath workspace) throws IOException {
     Document doc = Jsoup.parse(getClass().getResourceAsStream("InitMailContent.html"),
             "UTF-8", System.getProperty("user.dir"));
 
+    String assignmentType;
+    if (this.assignmentType.equals("maven")) {
+      assignmentType = "Java";
+    } else {
+      // Turn first character to upper case
+      assignmentType = this.assignmentType.substring(0, 1).toUpperCase()
+              + this.assignmentType.substring(1);
+    }
+    String homeworkName = workspace.getName().substring(workspace.getName().indexOf("_") + 1);
+
+    doc.selectFirst("#hw-type").text(assignmentType);
+    doc.selectFirst("#hw-name").text(homeworkName);
     doc.selectFirst("#release-time").text(this.releaseTime);
+    doc.selectFirst("#progedu-url").attr("href", this.progEduURL);
     this.mailTitle = "ProgEdu作業通知";
     return doc;
   }

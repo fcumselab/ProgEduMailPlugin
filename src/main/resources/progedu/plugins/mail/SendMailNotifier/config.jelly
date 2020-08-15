@@ -9,6 +9,9 @@
     <f:entry title="${%ReleaseTime}" field="releaseTime">
         <f:textbox />
     </f:entry>
+    <f:entry title="${%ProgEduURL}" field="progEduURL">
+        <f:textbox />
+    </f:entry>
     <f:entry title="${%AssignmentType}" field="assignmentType">
         <f:select />
     </f:entry>
